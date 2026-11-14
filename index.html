@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DR Memoriser</title>
+<meta name="description" content="Drill every domino reduction case up to 6 moves, with spaced repetition.">
+<meta name="theme-color" content="#1d232a">
+<meta name="color-scheme" content="dark">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="DR Memoriser">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="navbar">
+    <div class="nav-side"></div>
+    <h1>DR Memoriser</h1>
+    <div class="nav-side right">
+      <button class="icon" id="open-info" aria-label="About">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </button>
+      <button class="icon" id="open-settings" aria-label="Settings">
+        <svg viewBox="0 -960 960 960" fill="currentColor"><path d="m370-80-16-128q-13-5-24.5-12T307-235l-119 50L78-375l103-78q-1-7-1-13.500v-27q0-6.500 1-13.500L78-585l110-190 119 50q11-8 23-15t24-12l16-128h220l16 128q13 5 24.500 12t22.500 15l119-50 110 190-103 78q1 7 1 13.500v27q0 6.500-2 13.500l103 78-110 190-118-50q-11 8-23 15t-24 12L590-80zm70-80h79l14-106q31-8 57.500-23.500T639-327l99 41 39-68-86-65q5-14 7-29.500t2-31.500-2-31.500-7-29.500l86-65-39-68-99 42q-22-23-48.500-38.500T533-694l-13-106h-79l-14 106q-31 8-57.500 23.500T321-633l-99-41-39 68 86 64q-5 15-7 30t-2 32q0 16 2 31t7 30l-86 65 39 68 99-42q22 23 48.500 38.500T427-266zm42-180q58 0 99-41t41-99-41-99-99-41q-59 0-99.500 41T342-480t40.500 99 99.500 41m-2-140"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <div class="pickrow">
+      <label>Class <select id="cls" aria-label="Case class"></select></label>
+      <label>Moves <select id="len" aria-label="Optimal length"></select></label>
+      <label class="check"><input type="checkbox" id="upto"> and shorter</label>
+      <span class="count" id="set-count"></span>
+    </div>
+
+    <div class="stat">
+      <div class="pos"><b id="q-pos">–</b> <span id="q-label"></span></div>
+      <div id="timer">0.0s</div>
+    </div>
+    <div class="caseline"><b id="case-name">Loading cases…</b><span id="case-opt"></span></div>
+
+    <div id="cube" aria-label="The case on a 3D cube. Drag to turn it."></div>
+    <p id="scramble"></p>
+    <div id="status" role="status"></div>
+    <div id="sols"></div>
+    <div class="actions" id="actions"></div>
+
+    <div class="divider"></div>
+
+    <section class="setpanel" aria-label="Case set">
+      <div class="seg" role="group" aria-label="Mode">
+        <button id="mode-review" aria-pressed="true">Spaced review</button>
+        <button id="mode-recap" aria-pressed="false">Recap: each once</button>
+      </div>
+      <p class="note" id="mode-note"></p>
+      <div class="bar" id="bar"></div>
+      <div class="legend">
+        <span class="s-new" id="l-new"></span><span class="s-learn" id="l-learn"></span>
+        <span class="s-young" id="l-young"></span><span class="s-known" id="l-known"></span>
+      </div>
+      <p class="note" id="l-fast"></p>
+      <div class="chips" id="chips"></div>
+      <h2>Recent</h2>
+      <div class="big">
+        <div><b id="s-cases">0</b><span>cases</span></div>
+        <div><b id="s-opt">–</b><span>optimal</span></div>
+        <div><b id="s-time">–</b><span>average time</span></div>
+      </div>
+      <div class="hist" id="hist"></div>
+    </section>
+  </main>
+
+  <footer>v1.0.0</footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Settings" hidden>
+  <div class="drawer-head"><h2>Settings</h2><button class="icon" id="close-settings" aria-label="Close settings">✕</button></div>
+  <label class="row">Target time <span><input type="number" id="target" min="2" max="120" value="10" inputmode="numeric"> s</span></label>
+  <label class="row">Show optimal length <input type="checkbox" id="show-len"></label>
+  <label class="row">Go to next case after a fast answer <input type="checkbox" id="auto"></label>
+  <label class="row">Show back faces on the cube <input type="checkbox" id="back"></label>
+  <h3>Scramble</h3>
+  <label class="row">Random DR moves before the case <input type="checkbox" id="rand-dr"></label>
+  <label class="row">Random mirror <input type="checkbox" id="rand-mirror"></label>
+  <label class="row">Random U/D turn after the case <input type="checkbox" id="rand-ud"></label>
+  <h3>Your data</h3>
+  <p class="note" id="store-note"></p>
+  <div class="btnrow">
+    <button id="backup">Back up</button>
+    <button id="restore">Restore</button>
+    <input type="file" id="restore-file" accept="application/json,.json" hidden>
+  </div>
+  <p class="note" id="backup-note"></p>
+  <div class="btnrow"><button id="wipe" class="danger">Reset progress for this set</button></div>
+  <p class="note" id="wipe-note"></p>
+</aside>
+
+<dialog id="info">
+  <h2>How it works</h2>
+  <p>Pick a class and a number of moves. The page shows a DR case as a scramble and as a cube you can drag around. Find a solution that reaches DR, then press <b>Found it</b> to stop the clock and check it against the optimal ones.</p>
+  <p><b>Spaced review</b> shows cases that are due, then new ones, and brings a missed case back within a minute. <b>Recap</b> shows every case in the set exactly once.</p>
+  <p>Cases are every DR with an optimal length up to 6, one per shape. Mirrors and turns of U and D before the case count as the same case.</p>
+  <p class="note" id="info-store"></p>
+  <form method="dialog"><button>Close</button></form>
+</dialog>
+
+<script src="lib/eo_core.js"></script>
+<script src="lib/dr_core.js"></script>
+<script src="lib/cubing-twisty.js"></script>
+<script src="store.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
