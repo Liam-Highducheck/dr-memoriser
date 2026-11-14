@@ -124,7 +124,7 @@ dialog form { margin-top: 12px; }
 
 @media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
 
-.scrrow { display: flex; justify-content: center; }
+.scrrow { display: flex; flex-wrap: wrap; justify-content: center; }
 button.linkbtn { background: none; min-height: 36px; color: var(--muted); font-size: 13px; text-decoration: underline; padding: 0 10px; }
 #sols button.trig { box-shadow: inset 4px 0 0 var(--hit); }
 #sols button.brk { box-shadow: inset 4px 0 0 var(--warn); }

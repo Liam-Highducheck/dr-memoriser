@@ -49,7 +49,7 @@
     <div class="caseline"><b id="case-name">Loading cases…</b><span id="case-opt"></span></div>
 
     <div id="cube" aria-label="The case on a 3D cube. Drag to turn it."></div>
-    <div class="scrrow"><button id="toggle-scr" class="linkbtn">Show scramble</button><button id="toggle-tap" class="linkbtn">Tap to turn: off</button></div>
+    <div class="scrrow"><button id="toggle-scr" class="linkbtn">Show scramble</button><button id="toggle-tap" class="linkbtn">Tap to turn: off</button><button id="toggle-auto" class="linkbtn">Auto-next: off</button></div>
     <div class="moverow" id="moverow" hidden><div id="mymoves"></div><button id="reset-moves">Reset</button></div>
     <p id="scramble" hidden></p>
     <div id="status" role="status"></div>
@@ -81,7 +81,7 @@
     </section>
   </main>
 
-  <footer>v1.2.1</footer>
+  <footer>v1.3.0</footer>
 </div>
 
 <div class="scrim" id="scrim" hidden></div>
@@ -89,7 +89,7 @@
   <div class="drawer-head"><h2>Settings</h2><button class="icon" id="close-settings" aria-label="Close settings">✕</button></div>
   <label class="row">Target time <span><input type="number" id="target" min="2" max="120" value="10" inputmode="numeric"> s</span></label>
   <label class="row">Show optimal length <input type="checkbox" id="show-len"></label>
-  <label class="row">Go to next case after a fast answer <input type="checkbox" id="auto"></label>
+  <label class="row">Go to the next case after a fast answer <input type="checkbox" id="auto"></label>
   <label class="row">Show back faces on the cube <input type="checkbox" id="back"></label>
   <h3>Scramble</h3>
   <label class="row">Random DR moves before the case (hides the answer) <input type="checkbox" id="rand-dr"></label>
@@ -111,6 +111,7 @@
   <h2>How it works</h2>
   <p>Pick a class and a number of moves. The page shows a DR case as a scramble and as a cube you can drag around. Find a solution that reaches DR, then press <b>Found it</b> to stop the clock and check it against the optimal ones.</p>
   <p>With <b>Tap to turn</b> on, tap the centre of a face to turn it clockwise. Your moves are listed under the cube, and reaching an optimal DR stops the timer and grades the answer for you. A longer DR keeps the clock running so you can reset and retry. Drag anywhere else to turn the view.</p>
+  <p>Nothing starts until you press <b>Start</b> or <b>Next</b>, including after changing the class or length. Auto-next is off by default, so you can look over the other solutions first. You can keep turning the cube, and use Reset, after the timer has stopped.</p>
   <p><b>Spaced review</b> shows cases that are due, then new ones, and brings a missed case back within a minute. <b>Recap</b> shows every case in the set exactly once.</p>
   <p>Cases are every DR with an optimal length up to 6, one per shape. Mirrors and turns of U and D before the case count as the same case.</p>
   <p class="note" id="info-store"></p>

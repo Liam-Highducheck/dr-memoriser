@@ -6,7 +6,7 @@
   // review gaps by level. A miss goes back to level 0, a fast optimal answer moves up one.
   const STEPS = [1, 10, 60, 480, 1440, 4320, 10080, 23040, 50400].map((m) => m * MIN);
   const LEARNING_AT_ONCE = 8;
-  const DEFAULTS = { cls: "4c4e", len: 4, type: "all", upto: false, mode: "review", target: 10, showLen: true, auto: true, back: false, showScr: false, tap: false, randDR: true, randMirror: false, randUD: false };
+  const DEFAULTS = { cls: "4c4e", len: 4, type: "all", upto: false, mode: "review", target: 10, showLen: true, auto: false, back: false, showScr: false, tap: false, randDR: true, randMirror: false, randUD: false };
   const S = { ...DEFAULTS };
 
   // ---- load cases, open storage
@@ -17,18 +17,18 @@
   const loaded = st.settings.s || {};
   Object.assign(S, loaded);
   if ((loaded.v || 0) < 2) { S.randDR = true; S.showScr = false; }   // v2: random DR moves on by default, scramble text hidden
-  S.v = 2;
+  if ((loaded.v || 0) < 3) S.auto = false;   // v3: no automatic next case after a fast answer
+  S.v = 3;
   let prog = st.progress;
   // k.t = 1: some optimal solution is class-keeping setup moves then the class's shortest trigger. k.t = 0: every optimal
   // solution has an R/L quarter turn before that, which changes the class (the rzp breaks).
-  const counter = new Map(), minLen = {}, trigOf = {};
+  const counter = new Map(), minLen = {}, trigMemo = {};
   for (const k of CASES) {
     const key = `${k.c}/${k.m}/${k.t}`;
     k.no = (counter.get(key) || 0) + 1; counter.set(key, k.no);
     k.id = String(k.id);
     minLen[k.c] = Math.min(minLen[k.c] ?? 99, k.m);
   }
-  for (const k of CASES) if (k.m === minLen[k.c] && !trigOf[k.c]) trigOf[k.c] = k.s;
   const label = (k) => `${k.t ? "T" : "B"}${k.no}`;
   const isTrigger = (moves, min) => { const i = moves.findIndex((t) => /^[RL]'?$/.test(t)); return i >= moves.length - min; };
   const classes = [...new Set(CASES.map((k) => k.c))];
@@ -85,13 +85,30 @@
   }
   const typeOk = (k) => S.type === "all" || (S.type === "trig" ? k.t === 1 : k.t === 0);
   const pool = () => CASES.filter((k) => k.c === S.cls && typeOk(k));
+  // How people write the class's shortest trigger: of its mirror images, the one with the fewest L, D and B turns, then the fewest primes.
+  function trigText(cls) {
+    if (trigMemo[cls]) return trigMemo[cls];
+    const cost = (a) => {
+      const t = a.split(" "), iu = t.findIndex((x) => x[0] === "U"), id = t.findIndex((x) => x[0] === "D");
+      return t.reduce((n, x) => n + ("LDB".includes(x[0]) ? 10 : 0) + (x.endsWith("'") ? 1 : 0), t[0][0] === "R" ? 0 : 5) + (iu >= 0 && id >= 0 && id < iu ? 1 : 0);
+    };
+    let best = null;
+    for (const k of CASES) {
+      if (k.c !== cls || k.m !== minLen[cls]) continue;
+      for (let m = 0; m < 8; m++) {
+        const a = mirrorAlg(k.s, [m & 1, m & 2, m & 4].map(Boolean)), c = cost(a);
+        if (!best || c < best.c || (c === best.c && a < best.a)) best = { a, c };
+      }
+    }
+    return (trigMemo[cls] = best.a);
+  }
   function fillTypes() {
     const n = CASES.filter((k) => k.c === S.cls), t = n.filter((k) => k.t).length;
     $("type").innerHTML = `<option value="all">All (${n.length})</option><option value="trig">Ends in trigger (${t})</option><option value="brk">Breaks rzp (${n.length - t})</option>`;
     if (S.type === "trig" && !t) S.type = "all";
     if (S.type === "brk" && t === n.length) S.type = "all";
     $("type").value = S.type;
-    $("trig-note").textContent = `Standard trigger for ${S.cls}: ${trigOf[S.cls]}. Trigger cases are setup moves that keep the class, then the trigger. Breaking cases need an earlier quarter turn that changes the class.`;
+    $("trig-note").textContent = `Standard trigger for ${S.cls}: ${trigText(S.cls)}, or a mirror of it. Trigger cases are setup moves that keep the class, then the trigger. Breaking cases need an earlier quarter turn that changes the class.`;
   }
   function fillLengths() {
     const cnt = {};
@@ -108,7 +125,7 @@
   const stateOf = (k) => { const r = prog[k.id]; return !r ? "new" : r.box <= 1 ? "learn" : r.box <= 3 ? "young" : "known"; };
 
   // ---- choosing the next case
-  let queue = [], qpos = 0, misses = [], recent = [], ahead = false;
+  let queue = [], qpos = 0, misses = [], recent = [], ahead = false, ended = false;
   const shuffle = (a) => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
   function startRecap(list) { queue = shuffle(list.slice()); qpos = 0; misses = []; }
   function pickReview() {
@@ -164,12 +181,22 @@
     const sols = D.solve(g, 7);
     cur = { k, g, scr, sols, d: sols[0].length };
     recent.push(k.id); if (recent.length > 8) recent.shift();
-    phase = "solve"; t0 = performance.now(); frozen = 0;
+    phase = "solve"; ended = false; t0 = performance.now(); frozen = 0;
     player.experimentalSetupAlg = scr; player.alg = ""; player.jumpToStart();
     mine = []; renderMoves();
     $("scramble").textContent = scr;
     $("sols").innerHTML = ""; status("", "");
     showCase(); renderActions(); renderSet();
+  }
+  // Nothing is shown or timed until Start (or Next) is pressed, e.g. after changing the class, length or mode.
+  function idle() {
+    clearTimeout(advance);
+    cur = null; phase = "idle"; ended = false; mine = []; renderMoves();
+    player.experimentalSetupAlg = ""; player.alg = ""; player.jumpToStart();
+    $("timer").textContent = "0.0s"; $("timer").classList.remove("over");
+    $("case-name").textContent = "Ready"; $("case-opt").textContent = `${set.length} case${set.length === 1 ? "" : "s"}, press Start`;
+    $("scramble").textContent = ""; $("sols").innerHTML = ""; status("", "");
+    renderActions(); renderSet();
   }
   function nextCase() {
     if (!set.length) return;
@@ -178,7 +205,7 @@
   }
   function recapDone() {
     clearTimeout(advance);
-    cur = null; phase = "idle";
+    cur = null; phase = "idle"; ended = true;
     const n = queue.length, miss = misses.length;
     $("case-name").textContent = "Recap finished"; $("case-opt").textContent = "";
     status(miss ? `${n - miss} of ${n} optimal. ${miss} missed.` : `All ${n} cases optimal.`, miss ? "warn" : "hit");
@@ -202,7 +229,7 @@
   }
   $("sols").addEventListener("click", (ev) => {
     const b = ev.target.closest("button[data-alg]");
-    if (b) { player.alg = b.dataset.alg; player.jumpToStart(); player.play(); }
+    if (b) { player.alg = b.dataset.alg; player.jumpToStart(); player.play(); mine = b.dataset.alg.split(" "); renderMoves(); }
   });
 
   // ---- optional: tap the centre of a face to turn it clockwise
@@ -234,7 +261,9 @@
   }
   function resetMoves() { mine = []; player.alg = ""; player.jumpToStart(); renderMoves(); if (phase === "solve") status("", ""); }
   function turn(m) {
-    mine.push(m); player.experimentalAddMove(m); renderMoves(); status("", "");
+    mine.push(m); player.experimentalAddMove(m); renderMoves();
+    if (phase !== "solve") return;   // after the answer is in, moves are just for looking around
+    status("", "");
     if (!D.isDR(C.applySeq(cur.g, C.parse(mine.join(" "))))) return;
     const sol = canonMine(), text = C.names(sol), ms = performance.now() - t0;
     if (sol.length > cur.d) {   // DR, but longer than optimal: the timer keeps running so you can reset and try again
@@ -249,12 +278,15 @@
   $("cube").addEventListener("pointerdown", (ev) => { down = ev.isPrimary ? { x: ev.clientX, y: ev.clientY, t: performance.now() } : null; }, true);
   $("cube").addEventListener("pointerup", async (ev) => {
     const d = down; down = null;
-    if (!d || !S.tap || phase !== "solve") return;
+    if (!d || !S.tap || !cur) return;
     if (Math.hypot(ev.clientX - d.x, ev.clientY - d.y) > 8 || performance.now() - d.t > 600) return;   // a drag turns the view, not the cube
     const m = await faceAt(ev.clientX, ev.clientY).catch(() => null);
-    if (m && phase === "solve") turn(m);
+    if (m && cur) turn(m);
   }, true);
   $("cube").addEventListener("pointercancel", () => { down = null; }, true);
+  const syncAuto = () => { $("toggle-auto").textContent = S.auto ? "Auto-next: on" : "Auto-next: off"; $("auto").checked = S.auto; };
+  $("toggle-auto").addEventListener("click", () => { S.auto = !S.auto; saveSettings(); syncAuto(); });
+  $("auto").addEventListener("change", syncAuto);
   const syncTap = () => { $("toggle-tap").textContent = S.tap ? "Tap to turn: on" : "Tap to turn: off"; $("moverow").hidden = !S.tap; };
   $("toggle-tap").addEventListener("click", () => { S.tap = !S.tap; saveSettings(); resetMoves(); syncTap(); });
   $("reset-moves").addEventListener("click", resetMoves);
@@ -266,7 +298,8 @@
       phase === "solve" ? btn("found", "Found it", "Space", "primary") + btn("giveup", "Give up", "Esc")
       : phase === "confirm" ? btn("yes", "Yes, optimal", "Y", "primary") + btn("no", "No", "N")
       : phase === "done" ? btn("next", "Next", "Space", "primary")
-      : S.mode === "recap" && queue.length ? btn("again", "Shuffle again", "") + (misses.length ? btn("redo", "Repeat the misses", "") : "") : "";
+      : ended ? btn("again", "Shuffle again", "") + (misses.length ? btn("redo", "Repeat the misses", "") : "")
+      : btn("next", "Start", "Space", "primary");
   }
   function record(k, result, ms) {
     const now = Date.now();
@@ -368,7 +401,7 @@
     buildSet(); saveSettings(); recent = [];
     if (S.mode === "recap") startRecap(set);
     wipeArmed = false; $("wipe-note").textContent = "";
-    nextCase();
+    idle();
   }
   $("cls").addEventListener("change", () => { S.cls = $("cls").value; fillTypes(); fillLengths(); changeSet(); });
   $("type").addEventListener("change", () => { S.type = $("type").value; fillLengths(); changeSet(); });
@@ -377,8 +410,8 @@
   $("len").addEventListener("change", () => { S.len = +$("len").value; changeSet(); });
   $("upto").checked = S.upto;
   $("upto").addEventListener("change", () => { S.upto = $("upto").checked; changeSet(); });
-  $("mode-review").addEventListener("click", () => { S.mode = "review"; saveSettings(); nextCase(); });
-  $("mode-recap").addEventListener("click", () => { S.mode = "recap"; saveSettings(); startRecap(set); nextCase(); });
+  $("mode-review").addEventListener("click", () => { S.mode = "review"; saveSettings(); idle(); });
+  $("mode-recap").addEventListener("click", () => { S.mode = "recap"; saveSettings(); startRecap(set); idle(); });
   $("chips").addEventListener("click", (ev) => { const b = ev.target.closest("button"); if (b) show(caseById.get(b.dataset.id)); });
 
   let wipeArmed = false;
@@ -431,7 +464,7 @@
     const tag = ev.target.tagName;
     if (tag === "SELECT" || tag === "TEXTAREA" || (tag === "INPUT" && ev.target.type !== "checkbox") || (tag === "BUTTON" && ev.key === " ")) return;
     const k = ev.key.toLowerCase();
-    if (ev.key === " ") { ev.preventDefault(); phase === "solve" ? found() : phase === "done" ? nextCase() : 0; }
+    if (ev.key === " ") { ev.preventDefault(); phase === "solve" ? found() : phase === "done" || phase === "idle" ? nextCase() : 0; }
     else if (ev.key === "Enter") { if (phase === "done" || phase === "idle") { ev.preventDefault(); nextCase(); } }
     else if (k === "y") answer(true);
     else if (k === "n") answer(false);
@@ -439,11 +472,11 @@
   });
 
   // ---- start
-  fillClasses(); fillTypes(); fillLengths(); buildSet(); syncScr(); syncTap();
+  fillClasses(); fillTypes(); fillLengths(); buildSet(); syncScr(); syncTap(); syncAuto();
   if (S.mode === "recap") startRecap(set);
   log = (await Store.recent(60)).map((a) => ({ ...a }));
   renderStats();
-  nextCase();
+  idle();
 
   if ("serviceWorker" in navigator && location.protocol !== "file:") navigator.serviceWorker.register("sw.js").catch(() => {});
 })();
