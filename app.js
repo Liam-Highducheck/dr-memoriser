@@ -6,7 +6,7 @@
   // review gaps by level. A miss goes back to level 0, a fast optimal answer moves up one.
   const STEPS = [1, 10, 60, 480, 1440, 4320, 10080, 23040, 50400].map((m) => m * MIN);
   const LEARNING_AT_ONCE = 8;
-  const DEFAULTS = { cls: "4c4e", len: 4, type: "all", upto: false, mode: "review", target: 10, showLen: true, auto: true, back: false, showScr: false, randDR: true, randMirror: false, randUD: false };
+  const DEFAULTS = { cls: "4c4e", len: 4, type: "all", upto: false, mode: "review", target: 10, showLen: true, auto: true, back: false, showScr: false, tap: false, randDR: true, randMirror: false, randUD: false };
   const S = { ...DEFAULTS };
 
   // ---- load cases, open storage
@@ -150,7 +150,7 @@
   }
 
   // ---- the case on screen. phase: idle | solve | confirm | done
-  let cur = null, phase = "idle", t0 = 0, frozen = 0, advance = 0, log = [];
+  let cur = null, phase = "idle", t0 = 0, frozen = 0, advance = 0, log = [], mine = [];
   const elapsed = () => (phase === "solve" ? performance.now() - t0 : frozen);
 
   function show(k) {
@@ -162,10 +162,11 @@
     const scr = (S.randDR ? randomDR(12) + " " : "") + setup;
     const g = C.applySeq(C.solved(), C.parse(scr));
     const sols = D.solve(g, 7);
-    cur = { k, scr, sols, d: sols[0].length };
+    cur = { k, g, scr, sols, d: sols[0].length };
     recent.push(k.id); if (recent.length > 8) recent.shift();
     phase = "solve"; t0 = performance.now(); frozen = 0;
     player.experimentalSetupAlg = scr; player.alg = ""; player.jumpToStart();
+    mine = []; renderMoves();
     $("scramble").textContent = scr;
     $("sols").innerHTML = ""; status("", "");
     showCase(); renderActions(); renderSet();
@@ -203,6 +204,58 @@
     const b = ev.target.closest("button[data-alg]");
     if (b) { player.alg = b.dataset.alg; player.jumpToStart(); player.play(); }
   });
+
+  // ---- optional: tap the centre of a face to turn it clockwise
+  const FACES = [["R", 0, 1], ["L", 0, -1], ["U", 1, 1], ["D", 1, -1], ["F", 2, 1], ["B", 2, -1]];   // face, axis, side (cube spans +-0.5)
+  async function faceAt(cx, cy) {
+    const v = [...(await player.experimentalCurrentVantages())][0];
+    const cam = await v.camera();
+    cam.updateMatrixWorld(true);
+    const r = player.getBoundingClientRect();
+    const x = ((cx - r.left) / r.width) * 2 - 1, y = -(((cy - r.top) / r.height) * 2 - 1);
+    const a = new cam.position.constructor(x, y, 0.5).unproject(cam), o = cam.position;
+    const d = [a.x - o.x, a.y - o.y, a.z - o.z], oo = [o.x, o.y, o.z];
+    let best = null;
+    for (const [m, ax, sg] of FACES) {
+      const dn = d[ax] * sg;
+      if (dn >= 0) continue;                       // facing away from the camera
+      const t = (0.5 - oo[ax] * sg) / dn;
+      if (t <= 0) continue;
+      const pt = [0, 1, 2].map((i) => oo[i] + t * d[i]), others = [0, 1, 2].filter((i) => i !== ax);
+      if (others.some((i) => Math.abs(pt[i]) > 0.5)) continue;
+      if (!best || t < best.t) best = { m, t, centre: others.every((i) => Math.abs(pt[i]) <= 1 / 6) };
+    }
+    return best && best.centre ? best.m : null;
+  }
+  const canonMine = () => C.canon(C.parse(mine.join(" ")));
+  function renderMoves() {
+    const c = mine.length ? canonMine() : [];
+    $("mymoves").innerHTML = mine.length ? `<b>${c.length ? C.names(c) : "no net moves"}</b> <span>${c.length} move${c.length === 1 ? "" : "s"}</span>` : `<span>Tap the centre of a face to turn it clockwise.</span>`;
+  }
+  function resetMoves() { mine = []; player.alg = ""; player.jumpToStart(); renderMoves(); }
+  function turn(m) {
+    mine.push(m); player.experimentalAddMove(m); renderMoves();
+    if (!D.isDR(C.applySeq(cur.g, C.parse(mine.join(" "))))) return;
+    const sol = canonMine(), text = C.names(sol), ms = performance.now() - t0;   // reached DR: found, timer stops
+    if (sol.length <= cur.d) {
+      const fast = ms <= target();
+      finish(fast ? "fast" : "slow", text, ms);
+      status(fast ? `DR in ${sol.length}, optimal, ${fmt(ms)}` : `DR in ${sol.length}, optimal, but ${fmt(ms)} is over the ${fmt(target())} target`, fast ? "hit" : "info");
+    } else { finish("miss", text, ms); status(`DR in ${sol.length}, optimal is ${cur.d}. Counted as a miss.`, "warn"); }
+  }
+  let down = null;
+  $("cube").addEventListener("pointerdown", (ev) => { down = ev.isPrimary ? { x: ev.clientX, y: ev.clientY, t: performance.now() } : null; }, true);
+  $("cube").addEventListener("pointerup", async (ev) => {
+    const d = down; down = null;
+    if (!d || !S.tap || phase !== "solve") return;
+    if (Math.hypot(ev.clientX - d.x, ev.clientY - d.y) > 8 || performance.now() - d.t > 600) return;   // a drag turns the view, not the cube
+    const m = await faceAt(ev.clientX, ev.clientY).catch(() => null);
+    if (m && phase === "solve") turn(m);
+  }, true);
+  $("cube").addEventListener("pointercancel", () => { down = null; }, true);
+  const syncTap = () => { $("toggle-tap").textContent = S.tap ? "Tap to turn: on" : "Tap to turn: off"; $("moverow").hidden = !S.tap; };
+  $("toggle-tap").addEventListener("click", () => { S.tap = !S.tap; saveSettings(); resetMoves(); syncTap(); });
+  $("reset-moves").addEventListener("click", resetMoves);
 
   // ---- actions and grading
   function renderActions() {
@@ -384,7 +437,7 @@
   });
 
   // ---- start
-  fillClasses(); fillTypes(); fillLengths(); buildSet(); syncScr();
+  fillClasses(); fillTypes(); fillLengths(); buildSet(); syncScr(); syncTap();
   if (S.mode === "recap") startRecap(set);
   log = (await Store.recent(60)).map((a) => ({ ...a }));
   renderStats();

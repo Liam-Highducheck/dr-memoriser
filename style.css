@@ -132,3 +132,9 @@ button.linkbtn { background: none; min-height: 36px; color: var(--muted); font-s
 #sols .key { flex-basis: 100%; margin: 2px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
 #sols .key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 5px 0 8px; }
 #sols .key i.trig { background: var(--hit); } #sols .key i.brk { background: var(--warn); }
+
+.moverow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 6px 6px 6px 12px; background: var(--bg2); border-radius: 8px; }
+#mymoves { min-width: 0; font-family: var(--mono); font-size: 15px; overflow-wrap: anywhere; }
+#mymoves b { font-weight: 600; word-spacing: .15em; }
+#mymoves span { color: var(--muted); font-size: 12.5px; font-family: var(--font); }
+.moverow button { min-height: 38px; flex: none; }
