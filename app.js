@@ -232,16 +232,18 @@
     const c = mine.length ? canonMine() : [];
     $("mymoves").innerHTML = mine.length ? `<b>${c.length ? C.names(c) : "no net moves"}</b> <span>${c.length} move${c.length === 1 ? "" : "s"}</span>` : `<span>Tap the centre of a face to turn it clockwise.</span>`;
   }
-  function resetMoves() { mine = []; player.alg = ""; player.jumpToStart(); renderMoves(); }
+  function resetMoves() { mine = []; player.alg = ""; player.jumpToStart(); renderMoves(); if (phase === "solve") status("", ""); }
   function turn(m) {
-    mine.push(m); player.experimentalAddMove(m); renderMoves();
+    mine.push(m); player.experimentalAddMove(m); renderMoves(); status("", "");
     if (!D.isDR(C.applySeq(cur.g, C.parse(mine.join(" "))))) return;
-    const sol = canonMine(), text = C.names(sol), ms = performance.now() - t0;   // reached DR: found, timer stops
-    if (sol.length <= cur.d) {
-      const fast = ms <= target();
-      finish(fast ? "fast" : "slow", text, ms);
-      status(fast ? `DR in ${sol.length}, optimal, ${fmt(ms)}` : `DR in ${sol.length}, optimal, but ${fmt(ms)} is over the ${fmt(target())} target`, fast ? "hit" : "info");
-    } else { finish("miss", text, ms); status(`DR in ${sol.length}, optimal is ${cur.d}. Counted as a miss.`, "warn"); }
+    const sol = canonMine(), text = C.names(sol), ms = performance.now() - t0;
+    if (sol.length > cur.d) {   // DR, but longer than optimal: the timer keeps running so you can reset and try again
+      status(`DR in ${sol.length}, optimal is ${cur.d}. Reset to try again, or keep turning.`, "warn");
+      return;
+    }
+    const fast = ms <= target();   // optimal DR: found, the timer stops
+    finish(fast ? "fast" : "slow", text, ms);
+    status(fast ? `DR in ${sol.length}, optimal, ${fmt(ms)}` : `DR in ${sol.length}, optimal, but ${fmt(ms)} is over the ${fmt(target())} target`, fast ? "hit" : "info");
   }
   let down = null;
   $("cube").addEventListener("pointerdown", (ev) => { down = ev.isPrimary ? { x: ev.clientX, y: ev.clientY, t: performance.now() } : null; }, true);
