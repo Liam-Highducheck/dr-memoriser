@@ -6,7 +6,7 @@
   // review gaps by level. A miss goes back to level 0, a fast optimal answer moves up one.
   const STEPS = [1, 10, 60, 480, 1440, 4320, 10080, 23040, 50400].map((m) => m * MIN);
   const LEARNING_AT_ONCE = 8;
-  const DEFAULTS = { cls: "4c4e", len: 4, upto: false, mode: "review", target: 10, showLen: true, auto: true, back: false, randDR: false, randMirror: false, randUD: false };
+  const DEFAULTS = { cls: "4c4e", len: 4, type: "all", upto: false, mode: "review", target: 10, showLen: true, auto: true, back: false, showScr: false, randDR: true, randMirror: false, randUD: false };
   const S = { ...DEFAULTS };
 
   // ---- load cases, open storage
@@ -14,16 +14,23 @@
     fetch("data/cases.json").then((r) => r.json()),
     Store.open().then(() => Store.load()),
   ]);
-  Object.assign(S, st.settings.s || {});
+  const loaded = st.settings.s || {};
+  Object.assign(S, loaded);
+  if ((loaded.v || 0) < 2) { S.randDR = true; S.showScr = false; }   // v2: random DR moves on by default, scramble text hidden
+  S.v = 2;
   let prog = st.progress;
-  const byKey = new Map();
+  // k.t = 1: some optimal solution is class-keeping setup moves then the class's shortest trigger. k.t = 0: every optimal
+  // solution has an R/L quarter turn before that, which changes the class (the rzp breaks).
+  const counter = new Map(), minLen = {}, trigOf = {};
   for (const k of CASES) {
-    const key = k.c + "/" + k.m;
-    if (!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key).push(k);
-    k.no = byKey.get(key).length;
+    const key = `${k.c}/${k.m}/${k.t}`;
+    k.no = (counter.get(key) || 0) + 1; counter.set(key, k.no);
     k.id = String(k.id);
+    minLen[k.c] = Math.min(minLen[k.c] ?? 99, k.m);
   }
+  for (const k of CASES) if (k.m === minLen[k.c] && !trigOf[k.c]) trigOf[k.c] = k.s;
+  const label = (k) => `${k.t ? "T" : "B"}${k.no}`;
+  const isTrigger = (moves, min) => { const i = moves.findIndex((t) => /^[RL]'?$/.test(t)); return i >= moves.length - min; };
   const classes = [...new Set(CASES.map((k) => k.c))];
   const caseById = new Map(CASES.map((k) => [k.id, k]));
   if (!classes.includes(S.cls)) S.cls = DEFAULTS.cls;
@@ -76,14 +83,26 @@
     $("cls").innerHTML = classes.map((c) => `<option value="${c}">${c} (${CASES.filter((k) => k.c === c).length})</option>`).join("");
     $("cls").value = S.cls;
   }
+  const typeOk = (k) => S.type === "all" || (S.type === "trig" ? k.t === 1 : k.t === 0);
+  const pool = () => CASES.filter((k) => k.c === S.cls && typeOk(k));
+  function fillTypes() {
+    const n = CASES.filter((k) => k.c === S.cls), t = n.filter((k) => k.t).length;
+    $("type").innerHTML = `<option value="all">All (${n.length})</option><option value="trig">Ends in trigger (${t})</option><option value="brk">Breaks rzp (${n.length - t})</option>`;
+    if (S.type === "trig" && !t) S.type = "all";
+    if (S.type === "brk" && t === n.length) S.type = "all";
+    $("type").value = S.type;
+    $("trig-note").textContent = `Standard trigger for ${S.cls}: ${trigOf[S.cls]}. Trigger cases are setup moves that keep the class, then the trigger. Breaking cases need an earlier quarter turn that changes the class.`;
+  }
   function fillLengths() {
-    const ls = [1, 2, 3, 4, 5, 6].filter((m) => byKey.has(S.cls + "/" + m));
-    if (!ls.includes(S.len)) S.len = ls.find((m) => byKey.get(S.cls + "/" + m).length >= 5) || ls[0];
-    $("len").innerHTML = ls.map((m) => `<option value="${m}">${m} (${byKey.get(S.cls + "/" + m).length})</option>`).join("");
+    const cnt = {};
+    for (const k of pool()) cnt[k.m] = (cnt[k.m] || 0) + 1;
+    const ls = Object.keys(cnt).map(Number).sort((a, b) => a - b);
+    if (!ls.includes(S.len)) S.len = ls.find((m) => cnt[m] >= 5) || ls[0];
+    $("len").innerHTML = ls.map((m) => `<option value="${m}">${m} (${cnt[m]})</option>`).join("");
     $("len").value = S.len;
   }
   function buildSet() {
-    set = CASES.filter((k) => k.c === S.cls && (S.upto ? k.m <= S.len : k.m === S.len));
+    set = pool().filter((k) => (S.upto ? k.m <= S.len : k.m === S.len));
     $("set-count").textContent = `${set.length} case${set.length === 1 ? "" : "s"}`;
   }
   const stateOf = (k) => { const r = prog[k.id]; return !r ? "new" : r.box <= 1 ? "learn" : r.box <= 3 ? "young" : "known"; };
@@ -167,14 +186,18 @@
   }
   function showCase() {
     if (!cur) return;
-    $("case-name").textContent = `${cur.k.c} · ${cur.k.m} · #${cur.k.no}`;
-    $("case-opt").textContent = S.showLen || phase !== "solve" ? `DR in ${cur.d}` : "";
+    $("case-name").textContent = `${cur.k.c} · ${cur.k.m} · ${label(cur.k)}`;
+    $("case-opt").textContent = S.showLen || phase !== "solve" ? `DR in ${cur.d} · ${cur.k.t ? "ends in trigger" : "breaks rzp"}` : "";
   }
   function status(msg, cls) { const t = $("status"); t.textContent = msg; t.className = cls; }
   function showSolutions(mine) {
-    const list = cur.sols.slice(0, 12).map((s) => C.names(s));
-    $("sols").innerHTML = list.map((s) => `<button data-alg="${s}" class="${s === mine ? "mine" : ""}">${s}</button>`).join("")
-      + (cur.sols.length > 12 ? `<span class="more">+${cur.sols.length - 12} more</span>` : "");
+    const list = cur.sols.map((s) => C.names(s));
+    const min = minLen[cur.k.c];
+    const tag = (s) => (isTrigger(s.split(" "), min) ? "trig" : "brk");
+    const shown = list.slice().sort((a, b) => (tag(a) === "trig" ? 0 : 1) - (tag(b) === "trig" ? 0 : 1)).slice(0, 12);
+    $("sols").innerHTML = shown.map((s) => `<button data-alg="${s}" class="${tag(s)}${s === mine ? " mine" : ""}">${s}</button>`).join("")
+      + (list.length > 12 ? `<span class="more">+${list.length - 12} more</span>` : "")
+      + `<p class="key"><i class="trig"></i>ends in the trigger <i class="brk"></i>breaks the rzp</p>`;
   }
   $("sols").addEventListener("click", (ev) => {
     const b = ev.target.closest("button[data-alg]");
@@ -259,7 +282,7 @@
       const cls = [`s-${st}`, cur && cur.k === k ? "cur" : "", r && r.due <= now ? "due" : "", r && r.last > target() ? "slow" : ""].join(" ");
       const sub = !r ? "new" : r.last ? fmt(r.last) : "missed";
       const tip = !r ? "Not seen yet" : `Seen ${r.n}×, missed ${r.fails}×, ${r.due <= now ? "due now" : "due in " + gap(r.due - now)}`;
-      return `<button class="${cls}" data-id="${k.id}" title="${tip}">${S.upto ? `${k.m}·${k.no}` : `#${k.no}`}<em>${sub}</em></button>`;
+      return `<button class="${cls}" data-id="${k.id}" title="${tip}">${S.upto ? `${k.m}·` : ""}${label(k)}<em>${sub}</em></button>`;
     }).join("");
     if (S.mode === "recap") {
       $("q-pos").textContent = queue.length ? `${Math.min(qpos + (phase === "solve" || phase === "confirm" ? 1 : 0), queue.length)} / ${queue.length}` : "–";
@@ -292,7 +315,10 @@
     wipeArmed = false; $("wipe-note").textContent = "";
     nextCase();
   }
-  $("cls").addEventListener("change", () => { S.cls = $("cls").value; fillLengths(); changeSet(); });
+  $("cls").addEventListener("change", () => { S.cls = $("cls").value; fillTypes(); fillLengths(); changeSet(); });
+  $("type").addEventListener("change", () => { S.type = $("type").value; fillLengths(); changeSet(); });
+  const syncScr = () => { $("scramble").hidden = !S.showScr; $("toggle-scr").textContent = S.showScr ? "Hide scramble" : "Show scramble"; };
+  $("toggle-scr").addEventListener("click", () => { S.showScr = !S.showScr; saveSettings(); syncScr(); });
   $("len").addEventListener("change", () => { S.len = +$("len").value; changeSet(); });
   $("upto").checked = S.upto;
   $("upto").addEventListener("change", () => { S.upto = $("upto").checked; changeSet(); });
@@ -358,7 +384,7 @@
   });
 
   // ---- start
-  fillClasses(); fillLengths(); buildSet();
+  fillClasses(); fillTypes(); fillLengths(); buildSet(); syncScr();
   if (S.mode === "recap") startRecap(set);
   log = (await Store.recent(60)).map((a) => ({ ...a }));
   renderStats();

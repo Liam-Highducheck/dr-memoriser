@@ -34,10 +34,13 @@
   <main>
     <div class="pickrow">
       <label>Class <select id="cls" aria-label="Case class"></select></label>
+      <label>Type <select id="type" aria-label="Ending"></select></label>
       <label>Moves <select id="len" aria-label="Optimal length"></select></label>
       <label class="check"><input type="checkbox" id="upto"> and shorter</label>
       <span class="count" id="set-count"></span>
     </div>
+
+    <p class="note" id="trig-note"></p>
 
     <div class="stat">
       <div class="pos"><b id="q-pos">–</b> <span id="q-label"></span></div>
@@ -46,7 +49,8 @@
     <div class="caseline"><b id="case-name">Loading cases…</b><span id="case-opt"></span></div>
 
     <div id="cube" aria-label="The case on a 3D cube. Drag to turn it."></div>
-    <p id="scramble"></p>
+    <div class="scrrow"><button id="toggle-scr" class="linkbtn">Show scramble</button></div>
+    <p id="scramble" hidden></p>
     <div id="status" role="status"></div>
     <div id="sols"></div>
     <div class="actions" id="actions"></div>
@@ -76,7 +80,7 @@
     </section>
   </main>
 
-  <footer>v1.0.0</footer>
+  <footer>v1.1.0</footer>
 </div>
 
 <div class="scrim" id="scrim" hidden></div>
@@ -87,7 +91,7 @@
   <label class="row">Go to next case after a fast answer <input type="checkbox" id="auto"></label>
   <label class="row">Show back faces on the cube <input type="checkbox" id="back"></label>
   <h3>Scramble</h3>
-  <label class="row">Random DR moves before the case <input type="checkbox" id="rand-dr"></label>
+  <label class="row">Random DR moves before the case (hides the answer) <input type="checkbox" id="rand-dr"></label>
   <label class="row">Random mirror <input type="checkbox" id="rand-mirror"></label>
   <label class="row">Random U/D turn after the case <input type="checkbox" id="rand-ud"></label>
   <h3>Your data</h3>

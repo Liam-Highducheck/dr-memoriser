@@ -123,3 +123,12 @@ dialog p { margin: 0 0 10px; }
 dialog form { margin-top: 12px; }
 
 @media (prefers-reduced-motion: reduce) { button:active { transform: none; } }
+
+.scrrow { display: flex; justify-content: center; }
+button.linkbtn { background: none; min-height: 36px; color: var(--muted); font-size: 13px; text-decoration: underline; padding: 0 10px; }
+#sols button.trig { box-shadow: inset 4px 0 0 var(--hit); }
+#sols button.brk { box-shadow: inset 4px 0 0 var(--warn); }
+#sols button.mine { outline: 2px solid var(--ink); outline-offset: -2px; }
+#sols .key { flex-basis: 100%; margin: 2px 0 0; text-align: center; font-size: 12px; color: var(--muted); }
+#sols .key i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin: 0 5px 0 8px; }
+#sols .key i.trig { background: var(--hit); } #sols .key i.brk { background: var(--warn); }
