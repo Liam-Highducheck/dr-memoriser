@@ -6,7 +6,7 @@
   // review gaps by level. A miss goes back to level 0, a fast optimal answer moves up one.
   const STEPS = [1, 10, 60, 480, 1440, 4320, 10080, 23040, 50400].map((m) => m * MIN);
   const LEARNING_AT_ONCE = 8;
-  const DEFAULTS = { cls: "4c4e", len: 4, type: "all", upto: false, mode: "review", target: 10, showLen: true, auto: false, back: false, showScr: false, tap: false, randDR: true, randMirror: false, randUD: false };
+  const DEFAULTS = { cls: "4c4e", len: 4, type: "all", upto: false, mode: "review", target: 10, showLen: false, auto: false, back: false, showScr: false, tap: false, randDR: true, randMirror: false, randUD: false };
   const S = { ...DEFAULTS };
 
   // ---- load cases, open storage
@@ -18,7 +18,8 @@
   Object.assign(S, loaded);
   if ((loaded.v || 0) < 2) { S.randDR = true; S.showScr = false; }   // v2: random DR moves on by default, scramble text hidden
   if ((loaded.v || 0) < 3) S.auto = false;   // v3: no automatic next case after a fast answer
-  S.v = 3;
+  if ((loaded.v || 0) < 4) S.showLen = false;   // v4: the hint bar starts closed
+  S.v = 4;
   let prog = st.progress;
   // k.t = 1: some optimal solution is class-keeping setup moves then the class's shortest trigger. k.t = 0: every optimal
   // solution has an R/L quarter turn before that, which changes the class (the rzp breaks).
@@ -108,7 +109,9 @@
     if (S.type === "trig" && !t) S.type = "all";
     if (S.type === "brk" && t === n.length) S.type = "all";
     $("type").value = S.type;
-    $("trig-note").textContent = `Standard trigger for ${S.cls}: ${trigText(S.cls)}, or a mirror of it. Trigger cases are setup moves that keep the class, then the trigger. Breaking cases need an earlier quarter turn that changes the class.`;
+    const tg = trigText(S.cls);
+    $("trig-line").innerHTML = `Standard trigger: <b>${tg}</b>`;
+    $("trig-detail").textContent = `The shortest way to finish DR from ${S.cls} is ${tg}. Its mirror images count as the same trigger, so R, R', L and L' are interchangeable. "Ends in trigger" cases are setup moves that keep the class, then the trigger. "Breaks rzp" cases need an earlier quarter turn that changes the class first.`;
   }
   function fillLengths() {
     const cnt = {};
@@ -170,7 +173,8 @@
   let cur = null, phase = "idle", t0 = 0, frozen = 0, advance = 0, log = [], mine = [];
   const elapsed = () => (phase === "solve" ? performance.now() - t0 : frozen);
 
-  function show(k) {
+  let hintOpen = false;
+  function setup(k) {
     clearTimeout(advance);
     let alg = k.s;
     if (S.randMirror) alg = mirrorAlg(alg, [0, 1, 2].map(() => Math.random() < 0.5));
@@ -179,21 +183,38 @@
     const scr = (S.randDR ? randomDR(12) + " " : "") + setup;
     const g = C.applySeq(C.solved(), C.parse(scr));
     const sols = D.solve(g, 7);
-    cur = { k, g, scr, sols, d: sols[0].length };
-    recent.push(k.id); if (recent.length > 8) recent.shift();
-    phase = "solve"; ended = false; t0 = performance.now(); frozen = 0;
+    cur = { k, g, scr, sols, d: sols[0].length, fromList: false };
     player.experimentalSetupAlg = scr; player.alg = ""; player.jumpToStart();
-    mine = []; renderMoves();
+    mine = []; renderMoves(); hintOpen = S.showLen;
     $("scramble").textContent = scr;
     $("sols").innerHTML = ""; status("", "");
+  }
+  function show(k) {   // a timed attempt
+    setup(k);
+    recent.push(k.id); if (recent.length > 8) recent.shift();
+    phase = "solve"; ended = false; t0 = performance.now(); frozen = 0;
     showCase(); renderActions(); renderSet();
   }
+  function study(k) {   // a case picked from the list: shown on the cube, not timed, not graded
+    setup(k); cur.fromList = true;
+    phase = "study"; ended = false; frozen = 0;
+    status("Not timed. Solve it on the cube, then press Time it to try it against the clock, or Show solutions.", "info");
+    showCase(); renderActions(); renderSet();
+  }
+  function timeIt() {
+    if (phase !== "study") return;
+    resetMoves(); $("sols").innerHTML = ""; status("", "");
+    phase = "solve"; t0 = performance.now(); frozen = 0;
+    showCase(); renderActions(); renderSet();
+  }
+  function studySolutions() { if (phase === "study") { showSolutions(); status("Optimal solutions. Tap one to play it on the cube.", "info"); } }
   // Nothing is shown or timed until Start (or Next) is pressed, e.g. after changing the class, length or mode.
   function idle() {
     clearTimeout(advance);
     cur = null; phase = "idle"; ended = false; mine = []; renderMoves();
     player.experimentalSetupAlg = ""; player.alg = ""; player.jumpToStart();
     $("timer").textContent = "0.0s"; $("timer").classList.remove("over");
+    $("hintbar").disabled = true; $("hintbar").setAttribute("aria-expanded", "false");
     $("case-name").textContent = "Ready"; $("case-opt").textContent = `${set.length} case${set.length === 1 ? "" : "s"}, press Start`;
     $("scramble").textContent = ""; $("sols").innerHTML = ""; status("", "");
     renderActions(); renderSet();
@@ -207,6 +228,7 @@
     clearTimeout(advance);
     cur = null; phase = "idle"; ended = true;
     const n = queue.length, miss = misses.length;
+    $("hintbar").disabled = true;
     $("case-name").textContent = "Recap finished"; $("case-opt").textContent = "";
     status(miss ? `${n - miss} of ${n} optimal. ${miss} missed.` : `All ${n} cases optimal.`, miss ? "warn" : "hit");
     $("sols").innerHTML = "";
@@ -214,9 +236,13 @@
   }
   function showCase() {
     if (!cur) return;
-    $("case-name").textContent = `${cur.k.c} · ${cur.k.m} · ${label(cur.k)}`;
-    $("case-opt").textContent = S.showLen || phase !== "solve" ? `DR in ${cur.d} · ${cur.k.t ? "ends in trigger" : "breaks rzp"}` : "";
+    const open = hintOpen || phase === "done" || phase === "confirm";   // the answer is in: nothing left to hide
+    $("hintbar").disabled = false; $("hintbar").setAttribute("aria-expanded", String(open));
+    $("case-name").textContent = open ? `${cur.k.c} · ${cur.k.m} · ${label(cur.k)}` : "Hint";
+    $("case-opt").textContent = open ? `DR in ${cur.d} · ${cur.k.t ? "ends in trigger" : "breaks rzp"}` : "tap to show the case, its length and type";
   }
+  $("hintbar").addEventListener("click", () => { if (!cur) return; hintOpen = !hintOpen; showCase(); $("hintbar").blur(); });
+  $("trig-info").addEventListener("click", () => { const h = $("trig-detail").hidden = !$("trig-detail").hidden; $("trig-info").setAttribute("aria-expanded", String(!h)); $("trig-info").blur(); });
   function status(msg, cls) { const t = $("status"); t.textContent = msg; t.className = cls; }
   function showSolutions(mine) {
     const list = cur.sols.map((s) => C.names(s));
@@ -262,6 +288,12 @@
   function resetMoves() { mine = []; player.alg = ""; player.jumpToStart(); renderMoves(); if (phase === "solve") status("", ""); }
   function turn(m) {
     mine.push(m); player.experimentalAddMove(m); renderMoves();
+    if (phase === "study") {   // not timed: just say whether the moves reach DR
+      if (!D.isDR(C.applySeq(cur.g, C.parse(mine.join(" "))))) { status("", ""); return; }
+      const n = canonMine().length;
+      status(n <= cur.d ? `DR in ${n}, optimal.` : `DR in ${n}, optimal is ${cur.d}.`, n <= cur.d ? "hit" : "warn");
+      return;
+    }
     if (phase !== "solve") return;   // after the answer is in, moves are just for looking around
     status("", "");
     if (!D.isDR(C.applySeq(cur.g, C.parse(mine.join(" "))))) return;
@@ -298,6 +330,7 @@
       phase === "solve" ? btn("found", "Found it", "Space", "primary") + btn("giveup", "Give up", "Esc")
       : phase === "confirm" ? btn("yes", "Yes, optimal", "Y", "primary") + btn("no", "No", "N")
       : phase === "done" ? btn("next", "Next", "Space", "primary")
+      : phase === "study" ? btn("timeit", "Time it", "Space", "primary") + btn("sols", "Show solutions", "/") + btn("next", "Next", "Enter")
       : ended ? btn("again", "Shuffle again", "") + (misses.length ? btn("redo", "Repeat the misses", "") : "")
       : btn("next", "Start", "Space", "primary");
   }
@@ -322,7 +355,7 @@
     const attempt = { ts: Date.now(), id: cur.k.id, result, ms: Math.round(ms), sol: text };
     Store.record({ ...row }, attempt).catch(() => status("Could not save this result on the device.", "warn"));
     log.unshift({ ...attempt });
-    if (S.mode === "recap") { if (result === "miss") misses.push(cur.k); qpos++; }
+    if (S.mode === "recap" && !cur.fromList) { if (result === "miss") misses.push(cur.k); qpos++; }
     showCase(); showSolutions(text); renderActions(); renderStats(); renderSet();
     const id = cur.k.id;
     if (result === "fast" && S.auto) advance = setTimeout(() => { if (phase === "done" && cur && cur.k.id === id) nextCase(); }, 1100);
@@ -349,7 +382,7 @@
   }
   $("actions").addEventListener("click", (ev) => {
     const b = ev.target.closest("button[data-act]"); if (!b) return;
-    ({ found, giveup: giveUp, yes: () => answer(true), no: () => answer(false), next: nextCase,
+    ({ found, giveup: giveUp, yes: () => answer(true), no: () => answer(false), next: nextCase, timeit: timeIt, sols: studySolutions,
        again: () => { startRecap(set); nextCase(); }, redo: () => { startRecap(misses.slice()); nextCase(); } })[b.dataset.act]();
   });
 
@@ -412,7 +445,13 @@
   $("upto").addEventListener("change", () => { S.upto = $("upto").checked; changeSet(); });
   $("mode-review").addEventListener("click", () => { S.mode = "review"; saveSettings(); idle(); });
   $("mode-recap").addEventListener("click", () => { S.mode = "recap"; saveSettings(); startRecap(set); idle(); });
-  $("chips").addEventListener("click", (ev) => { const b = ev.target.closest("button"); if (b) show(caseById.get(b.dataset.id)); });
+  $("chips").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button"); if (!b) return;
+    b.blur();
+    const up = () => window.scrollTo({ top: 0, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    if (phase === "solve" || phase === "confirm") { status("Finish or give up this case before opening another from the list.", "info"); up(); return; }
+    study(caseById.get(b.dataset.id)); up();
+  });
 
   let wipeArmed = false;
   $("wipe").addEventListener("click", () => {
@@ -464,11 +503,11 @@
     const tag = ev.target.tagName;
     if (tag === "SELECT" || tag === "TEXTAREA" || (tag === "INPUT" && ev.target.type !== "checkbox") || (tag === "BUTTON" && ev.key === " ")) return;
     const k = ev.key.toLowerCase();
-    if (ev.key === " ") { ev.preventDefault(); phase === "solve" ? found() : phase === "done" || phase === "idle" ? nextCase() : 0; }
-    else if (ev.key === "Enter") { if (phase === "done" || phase === "idle") { ev.preventDefault(); nextCase(); } }
+    if (ev.key === " ") { ev.preventDefault(); phase === "solve" ? found() : phase === "study" ? timeIt() : phase === "done" || phase === "idle" ? nextCase() : 0; }
+    else if (ev.key === "Enter") { if (phase === "done" || phase === "idle" || phase === "study") { ev.preventDefault(); nextCase(); } }
     else if (k === "y") answer(true);
     else if (k === "n") answer(false);
-    else if (ev.key === "Escape" || ev.key === "/") { ev.preventDefault(); giveUp(); }
+    else if (ev.key === "Escape" || ev.key === "/") { ev.preventDefault(); phase === "study" ? studySolutions() : giveUp(); }
   });
 
   // ---- start

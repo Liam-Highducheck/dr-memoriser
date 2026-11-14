@@ -40,13 +40,17 @@
       <span class="count" id="set-count"></span>
     </div>
 
-    <p class="note" id="trig-note"></p>
+    <div class="trigline"><span id="trig-line"></span>
+      <button class="icon-sm" id="trig-info" type="button" aria-expanded="false" aria-controls="trig-detail" aria-label="About the standard trigger">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      </button></div>
+    <p class="note" id="trig-detail" hidden></p>
 
     <div class="stat">
       <div class="pos"><b id="q-pos">–</b> <span id="q-label"></span></div>
       <div id="timer">0.0s</div>
     </div>
-    <div class="caseline"><b id="case-name">Loading cases…</b><span id="case-opt"></span></div>
+    <button class="caseline" id="hintbar" type="button" aria-expanded="false" disabled><b id="case-name">Loading cases…</b><span id="case-opt"></span></button>
 
     <div id="cube" aria-label="The case on a 3D cube. Drag to turn it."></div>
     <div class="scrrow"><button id="toggle-scr" class="linkbtn">Show scramble</button><button id="toggle-tap" class="linkbtn">Tap to turn: off</button><button id="toggle-auto" class="linkbtn">Auto-next: off</button></div>
@@ -81,14 +85,14 @@
     </section>
   </main>
 
-  <footer>v1.3.0</footer>
+  <footer>v1.4.0</footer>
 </div>
 
 <div class="scrim" id="scrim" hidden></div>
 <aside class="drawer" id="drawer" aria-label="Settings" hidden>
   <div class="drawer-head"><h2>Settings</h2><button class="icon" id="close-settings" aria-label="Close settings">✕</button></div>
   <label class="row">Target time <span><input type="number" id="target" min="2" max="120" value="10" inputmode="numeric"> s</span></label>
-  <label class="row">Show optimal length <input type="checkbox" id="show-len"></label>
+  <label class="row">Open the hint bar for each new case <input type="checkbox" id="show-len"></label>
   <label class="row">Go to the next case after a fast answer <input type="checkbox" id="auto"></label>
   <label class="row">Show back faces on the cube <input type="checkbox" id="back"></label>
   <h3>Scramble</h3>
@@ -112,6 +116,7 @@
   <p>Pick a class and a number of moves. The page shows a DR case as a scramble and as a cube you can drag around. Find a solution that reaches DR, then press <b>Found it</b> to stop the clock and check it against the optimal ones.</p>
   <p>With <b>Tap to turn</b> on, tap the centre of a face to turn it clockwise. Your moves are listed under the cube, and reaching an optimal DR stops the timer and grades the answer for you. A longer DR keeps the clock running so you can reset and retry. Drag anywhere else to turn the view.</p>
   <p>Nothing starts until you press <b>Start</b> or <b>Next</b>, including after changing the class or length. Auto-next is off by default, so you can look over the other solutions first. You can keep turning the cube, and use Reset, after the timer has stopped.</p>
+  <p>The bar above the cube is a <b>hint</b>: tap it to show the case, its length and whether it breaks the rzp. Tap a case in the list below the cube, once the timer has stopped, to put it on the cube without timing it. You can solve it there, tap <b>Show solutions</b>, or press <b>Time it</b> to run it against the clock.</p>
   <p><b>Spaced review</b> shows cases that are due, then new ones, and brings a missed case back within a minute. <b>Recap</b> shows every case in the set exactly once.</p>
   <p>Cases are every DR with an optimal length up to 6, one per shape. Mirrors and turns of U and D before the case count as the same case.</p>
   <p class="note" id="info-store"></p>

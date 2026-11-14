@@ -138,3 +138,14 @@ button.linkbtn { background: none; min-height: 36px; color: var(--muted); font-s
 #mymoves b { font-weight: 600; word-spacing: .15em; }
 #mymoves span { color: var(--muted); font-size: 12.5px; font-family: var(--font); }
 .moverow button { min-height: 38px; flex: none; }
+
+button.caseline { width: 100%; justify-content: flex-start; text-align: left; font-weight: 400; min-height: 44px; padding: 8px 12px; background: var(--bg2); color: inherit; }
+button.caseline:hover:not(:disabled) { background: var(--btn); }
+button.caseline:disabled { cursor: default; opacity: 1; }
+button.caseline[aria-expanded="false"]:not(:disabled) b { color: var(--muted); font-family: var(--font); font-weight: 500; }
+.trigline { display: flex; align-items: center; gap: 2px; min-height: 36px; color: var(--muted); font-size: 13px; }
+.trigline b { color: var(--ink); font-family: var(--mono); font-size: 15px; font-weight: 600; word-spacing: .1em; }
+button.icon-sm { width: 36px; min-height: 36px; padding: 0; border-radius: 99px; background: transparent; display: grid; place-items: center; color: var(--muted); }
+button.icon-sm:hover { background: var(--btn); color: var(--ink); }
+button.icon-sm[aria-expanded="true"] { color: var(--accent); }
+button.icon-sm svg { width: 18px; height: 18px; }
